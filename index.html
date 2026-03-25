@@ -155,13 +155,12 @@
         }
         .modal-close:hover { color: var(--text); }
 
-        /* ── CAPTCHA area ── */
+        /* ── CAPTCHA area: board centered, pieces around it ── */
         .captcha-area {
             display: flex;
-            gap: 24px;
-            align-items: flex-start;
-            justify-content: center;
-            flex-wrap: wrap;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
         }
         .board-wrap {
             position: relative;
@@ -171,14 +170,20 @@
         }
         .pieces-panel {
             display: flex;
-            flex-direction: column;
-            gap: 12px;
-            align-items: center;
-            min-width: 120px;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            align-items: flex-end;
+            max-width: 600px;
         }
         .pieces-panel .piece-label {
-            font-size: 0.8rem;
-            color: var(--muted);
+            display: none;
+        }
+        .piece-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
         }
         .piece-canvas {
             cursor: grab;
@@ -248,12 +253,11 @@
         <h2>Подтвердите, что вы человек</h2>
         <p class="hint">Перетащите подходящую фигуру в отверстие на поле</p>
         <div class="captcha-area">
+            <div class="pieces-panel" id="piecesPanelTop"></div>
             <div class="board-wrap">
                 <canvas id="boardCanvas" width="280" height="280"></canvas>
             </div>
-            <div class="pieces-panel" id="piecesPanel">
-                <span class="piece-label">Выберите фигуру:</span>
-            </div>
+            <div class="pieces-panel" id="piecesPanelBottom"></div>
         </div>
         <div class="captcha-feedback" id="captchaFeedback"></div>
     </div>

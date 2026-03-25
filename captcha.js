@@ -357,33 +357,41 @@
     }
 
     function renderPieces() {
-        const panel = document.getElementById('piecesPanel');
-        panel.querySelectorAll('.piece-wrap').forEach(c => c.remove());
-        panel.querySelectorAll('canvas').forEach(c => c.remove());
+        const topPanel = document.getElementById('piecesPanelTop');
+        const bottomPanel = document.getElementById('piecesPanelBottom');
+        topPanel.innerHTML = '';
+        bottomPanel.innerHTML = '';
 
+        const visible = [];
         challenge.pieces.forEach((p, idx) => {
-            if (p.placed) return; // don't show placed pieces
+            if (!p.placed) visible.push(idx);
+        });
+
+        // Split pieces: first half on top, rest on bottom
+        const half = Math.ceil(visible.length / 2);
+
+        visible.forEach((idx, i) => {
+            const p = challenge.pieces[idx];
+            const panel = i < half ? topPanel : bottomPanel;
 
             const wrap = document.createElement('div');
             wrap.className = 'piece-wrap';
-            wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;';
 
             const c = document.createElement('canvas');
             c.className = 'piece-canvas';
             c.dataset.idx = idx;
-            drawPieceCanvas(c, p.cells, p.color, 24);
+            drawPieceCanvas(c, p.cells, p.color, 22);
 
-            // Rotate button
             const rotBtn = document.createElement('button');
             rotBtn.textContent = '\u21bb';
-            rotBtn.title = 'Повернуть';
+            rotBtn.title = '\u041f\u043e\u0432\u0435\u0440\u043d\u0443\u0442\u044c';
             rotBtn.style.cssText = 'background:none;border:1px solid #2e3147;color:#8890b5;' +
-                'border-radius:4px;padding:2px 8px;cursor:pointer;font-size:14px;';
+                'border-radius:4px;padding:1px 6px;cursor:pointer;font-size:13px;line-height:1;';
             rotBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 p.cells = rotateCW(p.cells);
                 p.currentRotation = (p.currentRotation + 1) % 4;
-                drawPieceCanvas(c, p.cells, p.color, 24);
+                drawPieceCanvas(c, p.cells, p.color, 22);
             });
 
             wrap.appendChild(c);
@@ -466,13 +474,8 @@
             if (challenge.placedCount >= challenge.targets.length) {
                 onCaptchaSuccess();
             }
-        } else if (piece.correct && !cellsEqual(piece.cells, piece.holeCells)) {
-            // Right piece but wrong rotation
-            const fb = document.getElementById('captchaFeedback');
-            fb.textContent = '\u21bb Правильная фигура, но нужно повернуть!';
-            fb.className = 'captcha-feedback fail';
-            setTimeout(() => { fb.textContent = ''; fb.className = 'captcha-feedback'; }, 2000);
         } else {
+            // Wrong piece OR right piece in wrong rotation — full reset
             onCaptchaFail();
         }
     }
@@ -528,7 +531,7 @@
         fb.textContent = '\u2717 \u041d\u0435\u0432\u0435\u0440\u043d\u0430\u044f \u0444\u0438\u0433\u0443\u0440\u0430. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.';
         fb.className = 'captcha-feedback fail';
 
-        const delay = 1200 + failCount * 500;
+        const delay = 800 + failCount * 300;
         setTimeout(resetChallenge, delay);
     }
 
