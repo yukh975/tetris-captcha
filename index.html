@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tetris CAPTCHA</title>
+    <style>
+        /* ── Theme ── */
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --border: #2e3147;
+            --text: #e2e4ef;
+            --muted: #8890b5;
+            --accent: #58a6ff;
+            --success: #3fb950;
+            --danger: #f85149;
+            --radius: 8px;
+            --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* ── Form ── */
+        .container {
+            width: 100%;
+            max-width: 480px;
+            padding: 20px;
+        }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px;
+        }
+        .card h1 {
+            font-size: 1.4rem;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text);
+            font-family: var(--font);
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color .2s;
+        }
+        .form-group input:focus, .form-group textarea:focus {
+            border-color: var(--accent);
+        }
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: var(--radius);
+            background: var(--accent);
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity .2s;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn:disabled { opacity: 0.5; cursor: default; }
+
+        /* ── Toast ── */
+        .toast {
+            position: fixed;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            padding: 12px 24px;
+            border-radius: var(--radius);
+            font-weight: 600;
+            font-size: 0.95rem;
+            z-index: 2000;
+            transition: transform .3s ease;
+            pointer-events: none;
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+        .toast.success { background: var(--success); color: #fff; }
+        .toast.error { background: var(--danger); color: #fff; }
+
+        /* ── Modal overlay ── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 28px;
+            max-width: 720px;
+            width: 95vw;
+            position: relative;
+            max-height: 95vh;
+            overflow-y: auto;
+        }
+        .modal h2 {
+            font-size: 1.15rem;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .modal .hint {
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+        }
+        .modal-close {
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            background: none;
+            border: none;
+            color: var(--muted);
+            font-size: 1.4rem;
+            cursor: pointer;
+            line-height: 1;
+        }
+        .modal-close:hover { color: var(--text); }
+
+        /* ── CAPTCHA area ── */
+        .captcha-area {
+            display: flex;
+            gap: 24px;
+            align-items: flex-start;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .board-wrap {
+            position: relative;
+        }
+        .board-wrap canvas {
+            border-radius: 6px;
+        }
+        .pieces-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+            min-width: 120px;
+        }
+        .pieces-panel .piece-label {
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+        .piece-canvas {
+            cursor: grab;
+            border-radius: 6px;
+            border: 2px solid transparent;
+            transition: border-color .15s, box-shadow .15s;
+        }
+        .piece-canvas:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 12px rgba(88,166,255,0.3);
+        }
+        .piece-canvas.dragging {
+            opacity: 0.4;
+        }
+
+        /* ── Drag ghost ── */
+        .drag-ghost {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1500;
+            opacity: 0.85;
+        }
+
+        /* ── Feedback ── */
+        .captcha-feedback {
+            text-align: center;
+            margin-top: 16px;
+            min-height: 24px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        .captcha-feedback.fail { color: var(--danger); }
+        .captcha-feedback.ok { color: var(--success); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <h1>Обратная связь</h1>
+        <form id="mainForm">
+            <div class="form-group">
+                <label for="name">Имя</label>
+                <input type="text" id="name" placeholder="Ваше имя" required>
+            </div>
+            <div class="form-group">
+                <label for="message">Сообщение</label>
+                <textarea id="message" placeholder="Напишите что-нибудь…" required></textarea>
+            </div>
+            <button type="submit" class="btn">Отправить</button>
+        </form>
+    </div>
+</div>
+
+<!-- Toast notification -->
+<div class="toast" id="toast"></div>
+
+<!-- CAPTCHA modal -->
+<div class="modal-overlay" id="captchaOverlay">
+    <div class="modal">
+        <button class="modal-close" id="captchaClose">&times;</button>
+        <h2>Подтвердите, что вы человек</h2>
+        <p class="hint">Перетащите подходящую фигуру в отверстие на поле</p>
+        <div class="captcha-area">
+            <div class="board-wrap">
+                <canvas id="boardCanvas" width="280" height="280"></canvas>
+            </div>
+            <div class="pieces-panel" id="piecesPanel">
+                <span class="piece-label">Выберите фигуру:</span>
+            </div>
+        </div>
+        <div class="captcha-feedback" id="captchaFeedback"></div>
+    </div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    /* ═══════════════════════════════════════
+       Piece definitions: tetrominoes (4 cells),
+       pentominoes (5 cells), hexominoes (6 cells)
+       Each piece has an array of rotations.
+       ═══════════════════════════════════════ */
+
+    // Helper: generate all 4 rotations of a piece, deduplicated
+    function rotations(cells) {
+        const rots = [cells];
+        let cur = cells;
+        for (let i = 0; i < 3; i++) {
+            cur = cur.map(([x,y]) => [-y, x]);
+            // normalize to 0,0 origin
+            let minX = Infinity, minY = Infinity;
+            for (const [x,y] of cur) { minX = Math.min(minX, x); minY = Math.min(minY, y); }
+            cur = cur.map(([x,y]) => [x - minX, y - minY]);
+            // check if duplicate
+            const sorted = cur.slice().sort((a,b) => a[0]-b[0]||a[1]-b[1]);
+            const key = sorted.map(c => c.join(',')).join(';');
+            const isDup = rots.some(r => {
+                const s = r.slice().sort((a,b) => a[0]-b[0]||a[1]-b[1]);
+                return s.map(c => c.join(',')).join(';') === key;
+            });
+            if (!isDup) rots.push(cur.slice());
+        }
+        return rots;
+    }
+
+    const PIECES = {
+        // ── Tetrominoes (4 cells) ──
+        I4:  rotations([[0,0],[1,0],[2,0],[3,0]]),
+        O4:  rotations([[0,0],[1,0],[0,1],[1,1]]),
+        T4:  rotations([[0,0],[1,0],[2,0],[1,1]]),
+        S4:  rotations([[1,0],[2,0],[0,1],[1,1]]),
+        Z4:  rotations([[0,0],[1,0],[1,1],[2,1]]),
+        L4:  rotations([[0,0],[0,1],[0,2],[1,2]]),
+        J4:  rotations([[1,0],[1,1],[1,2],[0,2]]),
+
+        // ── Pentominoes (5 cells) ──
+        F5:  rotations([[1,0],[2,0],[0,1],[1,1],[1,2]]),
+        I5:  rotations([[0,0],[1,0],[2,0],[3,0],[4,0]]),
+        L5:  rotations([[0,0],[0,1],[0,2],[0,3],[1,3]]),
+        N5:  rotations([[0,0],[0,1],[1,1],[1,2],[1,3]]),
+        P5:  rotations([[0,0],[1,0],[0,1],[1,1],[0,2]]),
+        T5:  rotations([[0,0],[1,0],[2,0],[1,1],[1,2]]),
+        U5:  rotations([[0,0],[2,0],[0,1],[1,1],[2,1]]),
+        V5:  rotations([[0,0],[0,1],[0,2],[1,2],[2,2]]),
+        W5:  rotations([[0,0],[0,1],[1,1],[1,2],[2,2]]),
+        X5:  rotations([[1,0],[0,1],[1,1],[2,1],[1,2]]),
+        Y5:  rotations([[1,0],[0,1],[1,1],[1,2],[1,3]]),
+        Z5:  rotations([[0,0],[1,0],[1,1],[1,2],[2,2]]),
+
+        // ── Hexominoes (6 cells) — selected interesting shapes ──
+        H1:  rotations([[0,0],[1,0],[2,0],[3,0],[4,0],[5,0]]),       // I6
+        H2:  rotations([[0,0],[1,0],[2,0],[3,0],[3,1],[4,1]]),       // long L-step
+        H3:  rotations([[0,0],[1,0],[1,1],[2,1],[2,2],[3,2]]),       // staircase
+        H4:  rotations([[0,0],[1,0],[2,0],[1,1],[2,1],[1,2]]),       // thick T
+        H5:  rotations([[0,0],[1,0],[0,1],[1,1],[0,2],[1,2]]),       // 2x3 block
+        H6:  rotations([[1,0],[0,1],[1,1],[2,1],[0,2],[1,2]]),       // cross variant
+        H7:  rotations([[0,0],[1,0],[2,0],[0,1],[0,2],[0,3]]),       // big L
+        H8:  rotations([[0,0],[1,0],[2,0],[0,1],[1,1],[0,2]]),       // P-fat
+    };
+
+    const COLORS = {
+        // Tetrominoes
+        I4: '#00d4ff', O4: '#ffd600', T4: '#b347d9',
+        S4: '#3fb950', Z4: '#f85149', L4: '#f0883e', J4: '#58a6ff',
+        // Pentominoes
+        F5: '#e879f9', I5: '#06b6d4', L5: '#fb923c', N5: '#a78bfa',
+        P5: '#4ade80', T5: '#f472b6', U5: '#fbbf24', V5: '#34d399',
+        W5: '#f87171', X5: '#c084fc', Y5: '#38bdf8', Z5: '#fb7185',
+        // Hexominoes
+        H1: '#22d3ee', H2: '#a3e635', H3: '#e9d5ff', H4: '#fca5a5',
+        H5: '#86efac', H6: '#93c5fd', H7: '#fde68a', H8: '#d8b4fe',
+    };
+
+    const CELL = 32;         // cell size in px
+    const BOARD_CELLS = 10;  // board grid dimension
+    const BOARD_PX = BOARD_CELLS * CELL + 2; // +2 for border
+
+    /* ═══════════════════════════════════════
+       Utility
+       ═══════════════════════════════════════ */
+    function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+    function pieceBounds(cells) {
+        let mx = 0, my = 0;
+        for (const [x, y] of cells) { mx = Math.max(mx, x); my = Math.max(my, y); }
+        return { w: mx + 1, h: my + 1 };
+    }
+
+    function normalizeCells(cells) {
+        let minX = Infinity, minY = Infinity;
+        for (const [x, y] of cells) { minX = Math.min(minX, x); minY = Math.min(minY, y); }
+        return cells.map(([x, y]) => [x - minX, y - minY]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    }
+
+    function cellsEqual(a, b) {
+        if (a.length !== b.length) return false;
+        const na = normalizeCells(a), nb = normalizeCells(b);
+        return na.every((c, i) => c[0] === nb[i][0] && c[1] === nb[i][1]);
+    }
+
+    /* ═══════════════════════════════════════
+       CAPTCHA state
+       ═══════════════════════════════════════ */
+    let challenge = null;   // { targetKey, targetCells, holeOffset, pieces, token }
+    let dragState = null;   // { pieceIdx, ghost, offsetX, offsetY }
+
+    function generateChallenge() {
+        const keys = Object.keys(PIECES);
+        const targetKey = rand(keys);
+        const targetCells = rand(PIECES[targetKey]);
+        const bounds = pieceBounds(targetCells);
+
+        // Position the hole on the board with random offset
+        const maxOx = BOARD_CELLS - bounds.w;
+        const maxOy = BOARD_CELLS - bounds.h;
+        const ox = Math.floor(Math.random() * (maxOx + 1));
+        const oy = Math.floor(Math.random() * (maxOy + 1));
+
+        // Pick 3-4 distractor pieces (different shape, same cell count preferred)
+        const targetSize = targetCells.length;
+        // Prefer same-size pieces as distractors (harder to distinguish)
+        let distractorKeys = keys.filter(k => {
+            if (k === targetKey) return false;
+            return !PIECES[k].some(rot => cellsEqual(rot, targetCells));
+        });
+        // Sort: same cell count first, then others
+        distractorKeys.sort((a, b) => {
+            const aSame = PIECES[a][0].length === targetSize ? 0 : 1;
+            const bSame = PIECES[b][0].length === targetSize ? 0 : 1;
+            return aSame - bSame;
+        });
+        shuffle(distractorKeys.filter(k => PIECES[k][0].length === targetSize));
+
+        const numDistractors = 3 + Math.floor(Math.random() * 2); // 3 or 4
+        const distractors = distractorKeys.slice(0, numDistractors).map(k => ({
+            key: k,
+            cells: rand(PIECES[k]),
+            correct: false
+        }));
+
+        const pieces = shuffle([
+            { key: targetKey, cells: targetCells, correct: true },
+            ...distractors
+        ]);
+
+        const token = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        challenge = { targetKey, targetCells, holeOffset: { x: ox, y: oy }, pieces, token };
+        return challenge;
+    }
+
+    /* ═══════════════════════════════════════
+       Drawing
+       ═══════════════════════════════════════ */
+    function drawBoard() {
+        const canvas = document.getElementById('boardCanvas');
+        canvas.width = BOARD_PX;
+        canvas.height = BOARD_PX;
+        const ctx = canvas.getContext('2d');
+        const ch = challenge;
+
+        // Background
+        ctx.fillStyle = '#252836';
+        ctx.fillRect(0, 0, BOARD_PX, BOARD_PX);
+
+        // Grid lines
+        ctx.strokeStyle = '#333750';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= BOARD_CELLS; i++) {
+            const p = i * CELL + 1;
+            ctx.beginPath(); ctx.moveTo(p, 1); ctx.lineTo(p, BOARD_PX - 1); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(1, p); ctx.lineTo(BOARD_PX - 1, p); ctx.stroke();
+        }
+
+        // Fill board cells (non-hole)
+        const holeSet = new Set();
+        for (const [cx, cy] of ch.targetCells) {
+            const bx = cx + ch.holeOffset.x;
+            const by = cy + ch.holeOffset.y;
+            holeSet.add(bx + ',' + by);
+        }
+        for (let y = 0; y < BOARD_CELLS; y++) {
+            for (let x = 0; x < BOARD_CELLS; x++) {
+                if (!holeSet.has(x + ',' + y)) {
+                    ctx.fillStyle = '#3a3f55';
+                    ctx.fillRect(x * CELL + 2, y * CELL + 2, CELL - 2, CELL - 2);
+                }
+            }
+        }
+
+        // Draw hole with a subtle glow
+        for (const [cx, cy] of ch.targetCells) {
+            const bx = cx + ch.holeOffset.x;
+            const by = cy + ch.holeOffset.y;
+            ctx.fillStyle = '#151821';
+            ctx.fillRect(bx * CELL + 2, by * CELL + 2, CELL - 2, CELL - 2);
+            // inner shadow
+            ctx.strokeStyle = 'rgba(88,166,255,0.25)';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(bx * CELL + 2, by * CELL + 2, CELL - 2, CELL - 2);
+        }
+
+        // Border
+        ctx.strokeStyle = var_border;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(0, 0, BOARD_PX, BOARD_PX);
+    }
+
+    const var_border = '#2e3147';
+
+    function drawPieceCanvas(canvas, cells, colorKey, size) {
+        const bounds = pieceBounds(cells);
+        const cs = size || 28; // cell size for piece thumbnail
+        const pad = 4;
+        canvas.width = bounds.w * cs + pad * 2;
+        canvas.height = bounds.h * cs + pad * 2;
+        const ctx = canvas.getContext('2d');
+        const color = COLORS[colorKey];
+
+        for (const [cx, cy] of cells) {
+            const x = cx * cs + pad;
+            const y = cy * cs + pad;
+            // block fill
+            ctx.fillStyle = color;
+            ctx.fillRect(x + 1, y + 1, cs - 2, cs - 2);
+            // highlight
+            ctx.fillStyle = 'rgba(255,255,255,0.2)';
+            ctx.fillRect(x + 1, y + 1, cs - 2, 3);
+            ctx.fillRect(x + 1, y + 1, 3, cs - 2);
+            // shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.25)';
+            ctx.fillRect(x + 1, y + cs - 3, cs - 2, 2);
+            ctx.fillRect(x + cs - 3, y + 1, 2, cs - 2);
+        }
+    }
+
+    /* ═══════════════════════════════════════
+       CAPTCHA lifecycle
+       ═══════════════════════════════════════ */
+    function openCaptcha() {
+        generateChallenge();
+        drawBoard();
+        renderPieces();
+        document.getElementById('captchaFeedback').textContent = '';
+        document.getElementById('captchaFeedback').className = 'captcha-feedback';
+        document.getElementById('captchaOverlay').classList.add('open');
+    }
+
+    function closeCaptcha() {
+        document.getElementById('captchaOverlay').classList.remove('open');
+        cleanupDrag();
+    }
+
+    function renderPieces() {
+        const panel = document.getElementById('piecesPanel');
+        // Remove old piece canvases
+        panel.querySelectorAll('canvas').forEach(c => c.remove());
+
+        challenge.pieces.forEach((p, idx) => {
+            const c = document.createElement('canvas');
+            c.className = 'piece-canvas';
+            c.dataset.idx = idx;
+            drawPieceCanvas(c, p.cells, p.key, 28);
+            panel.appendChild(c);
+
+            // Drag start — mouse
+            c.addEventListener('mousedown', e => startDrag(e, idx, c));
+            // Drag start — touch
+            c.addEventListener('touchstart', e => startDragTouch(e, idx, c), { passive: false });
+        });
+    }
+
+    /* ═══════════════════════════════════════
+       Drag & Drop
+       ═══════════════════════════════════════ */
+    function startDrag(e, idx, srcCanvas) {
+        e.preventDefault();
+        const piece = challenge.pieces[idx];
+        const ghost = document.createElement('canvas');
+        ghost.className = 'drag-ghost';
+        drawPieceCanvas(ghost, piece.cells, piece.key, CELL);
+        document.body.appendChild(ghost);
+        srcCanvas.classList.add('dragging');
+
+        const rect = ghost.getBoundingClientRect();
+        dragState = {
+            pieceIdx: idx,
+            ghost,
+            srcCanvas,
+            offsetX: ghost.width / 2,
+            offsetY: ghost.height / 2
+        };
+        moveGhost(e.clientX, e.clientY);
+
+        document.addEventListener('mousemove', onDragMove);
+        document.addEventListener('mouseup', onDragEnd);
+    }
+
+    function startDragTouch(e, idx, srcCanvas) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const piece = challenge.pieces[idx];
+        const ghost = document.createElement('canvas');
+        ghost.className = 'drag-ghost';
+        drawPieceCanvas(ghost, piece.cells, piece.key, CELL);
+        document.body.appendChild(ghost);
+        srcCanvas.classList.add('dragging');
+
+        dragState = {
+            pieceIdx: idx,
+            ghost,
+            srcCanvas,
+            offsetX: ghost.width / 2,
+            offsetY: ghost.height / 2
+        };
+        moveGhost(touch.clientX, touch.clientY);
+
+        document.addEventListener('touchmove', onDragMoveTouch, { passive: false });
+        document.addEventListener('touchend', onDragEndTouch);
+    }
+
+    function moveGhost(cx, cy) {
+        if (!dragState) return;
+        dragState.ghost.style.left = (cx - dragState.offsetX) + 'px';
+        dragState.ghost.style.top = (cy - dragState.offsetY) + 'px';
+    }
+
+    function onDragMove(e) { moveGhost(e.clientX, e.clientY); }
+    function onDragMoveTouch(e) { e.preventDefault(); moveGhost(e.touches[0].clientX, e.touches[0].clientY); }
+
+    function onDragEnd(e) { finishDrag(e.clientX, e.clientY); }
+    function onDragEndTouch(e) {
+        const t = e.changedTouches[0];
+        finishDrag(t.clientX, t.clientY);
+    }
+
+    function finishDrag(cx, cy) {
+        if (!dragState) return;
+
+        const boardCanvas = document.getElementById('boardCanvas');
+        const rect = boardCanvas.getBoundingClientRect();
+        const piece = challenge.pieces[dragState.pieceIdx];
+
+        // Check if dropped over board
+        const inBoard = cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom;
+
+        cleanupDrag();
+
+        if (inBoard && piece.correct) {
+            onCaptchaSuccess();
+        } else if (inBoard) {
+            onCaptchaFail();
+        }
+        // if dropped outside board — just cancel, no penalty
+    }
+
+    function cleanupDrag() {
+        if (dragState) {
+            dragState.ghost.remove();
+            dragState.srcCanvas.classList.remove('dragging');
+            document.removeEventListener('mousemove', onDragMove);
+            document.removeEventListener('mouseup', onDragEnd);
+            document.removeEventListener('touchmove', onDragMoveTouch);
+            document.removeEventListener('touchend', onDragEndTouch);
+            dragState = null;
+        }
+    }
+
+    /* ═══════════════════════════════════════
+       Result handling
+       ═══════════════════════════════════════ */
+    function onCaptchaSuccess() {
+        const fb = document.getElementById('captchaFeedback');
+        fb.textContent = '✓ Проверка пройдена!';
+        fb.className = 'captcha-feedback ok';
+
+        // Highlight hole with correct color
+        highlightBoard(true);
+
+        setTimeout(() => {
+            closeCaptcha();
+            showToast('Форма отправлена!', 'success');
+            document.getElementById('mainForm').reset();
+        }, 900);
+    }
+
+    function onCaptchaFail() {
+        const fb = document.getElementById('captchaFeedback');
+        fb.textContent = '✗ Неверная фигура. Попробуйте ещё раз.';
+        fb.className = 'captcha-feedback fail';
+
+        highlightBoard(false);
+
+        // Regenerate after a short delay
+        setTimeout(() => {
+            generateChallenge();
+            drawBoard();
+            renderPieces();
+            fb.textContent = '';
+            fb.className = 'captcha-feedback';
+        }, 1200);
+    }
+
+    function highlightBoard(success) {
+        const canvas = document.getElementById('boardCanvas');
+        const ctx = canvas.getContext('2d');
+        const ch = challenge;
+        const color = success ? COLORS[ch.targetKey] : 'rgba(248,81,73,0.5)';
+
+        for (const [cx, cy] of ch.targetCells) {
+            const bx = cx + ch.holeOffset.x;
+            const by = cy + ch.holeOffset.y;
+            ctx.fillStyle = color;
+            ctx.fillRect(bx * CELL + 2, by * CELL + 2, CELL - 2, CELL - 2);
+            if (success) {
+                ctx.fillStyle = 'rgba(255,255,255,0.18)';
+                ctx.fillRect(bx * CELL + 2, by * CELL + 2, CELL - 2, 3);
+                ctx.fillRect(bx * CELL + 2, by * CELL + 2, 3, CELL - 2);
+            }
+        }
+    }
+
+    /* ═══════════════════════════════════════
+       Toast
+       ═══════════════════════════════════════ */
+    function showToast(msg, type) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.className = 'toast ' + type + ' show';
+        setTimeout(() => el.classList.remove('show'), 2500);
+    }
+
+    /* ═══════════════════════════════════════
+       Init
+       ═══════════════════════════════════════ */
+    document.getElementById('mainForm').addEventListener('submit', e => {
+        e.preventDefault();
+        openCaptcha();
+    });
+
+    document.getElementById('captchaClose').addEventListener('click', closeCaptcha);
+    document.getElementById('captchaOverlay').addEventListener('click', e => {
+        if (e.target === e.currentTarget) closeCaptcha();
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeCaptcha();
+    });
+
+})();
+</script>
+</body>
+</html>
