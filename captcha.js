@@ -350,9 +350,9 @@
         const placed = challenge.placedCount;
         const hint = document.querySelector('.modal .hint');
         if (placed > 0 && placed < total) {
-            hint.textContent = 'Размещено ' + placed + ' из ' + total + '. Продолжайте!';
+            hint.textContent = '\u0420\u0430\u0437\u043c\u0435\u0449\u0435\u043d\u043e ' + placed + ' \u0438\u0437 ' + total;
         } else if (placed === 0) {
-            hint.textContent = 'Поверните (клик) и перетащите ' + total + ' фигур' + (total > 1 ? 'ы' : 'у') + ' в отверстия';
+            hint.textContent = '\u041f\u043e\u0441\u0442\u0430\u0432\u044c\u0442\u0435 \u0444\u0438\u0433\u0443\u0440\u044b \u043d\u0430 \u0441\u0432\u043e\u0438 \u043c\u0435\u0441\u0442\u0430';
         }
     }
 
