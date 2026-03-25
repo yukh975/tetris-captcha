@@ -111,12 +111,12 @@
     let dragState = null;
 
     function generateChallenge() {
-        const numTargets = 2 + Math.floor(Math.random() * 2); // 2 or 3
+        const numTargets = 3 + Math.floor(Math.random() * 2); // 3 or 4
         const targets = []; // { cells (hole shape), color, offset, displayRotation }
         const occupied = new Set(); // cells already taken by holes
 
         for (let t = 0; t < numTargets; t++) {
-            const size = 5 + Math.floor(Math.random() * 4); // 5-8 cells
+            const size = 7 + Math.floor(Math.random() * 4); // 7-10 cells
             let cells, bounds, offset;
             let ok = false;
             for (let attempt = 0; attempt < 100; attempt++) {
